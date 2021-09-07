@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+    <head>
+
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+        <meta name="robots" content="noindex, nofollow, noodp, noydir" />
+        <meta name="keywords" content="" />
+        <meta name="description" content="" />
+        <meta name="copyright" content="" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+
+        <title></title>
+        <!-- Bootstrap -->
+        <link href="css/bootstrap.min.css" rel="stylesheet">
+        <link href="css/signin.css" rel="stylesheet">
+
+        <!-- static zone info -->
+        <script src="js/zone.js"></script>
+
+        <script src="js/jquery-1.11.2.min.js"></script>
+          <script src="./js/qrcode.js"></script>
+  <style>
+
+    h1 {
+      margin: 10px 0;
+      font-size: 40px;
+    }
+
+    #loadingMessage {
+      text-align: center;
+      padding: 40px;
+      background-color: #eee;
+    }
+
+    #canvas {
+      width: 100%;
+    }
+
+    #output {
+      margin-top: 20px;
+      background: #eee;
+      padding: 10px;
+      padding-bottom: 0;
+    }
+
+    #output div {
+      padding-bottom: 10px;
+      word-wrap: break-word;
+    }
+
+    #noQRFound {
+      text-align: center;
+    }
+  </style>
+
+    </head>
+    <body>
+        <header class="page-head">
+            <nav class="navbar navbar-expand-sm bg-dark navbar-custom">
+              <!-- Brand/logo -->
+              <a class="navbar-brand" href="#">
+                <img src="./images/default-logo.png" alt="logo" style="width:30px;">
+              </a>
+              
+            </nav>
+        </header>
+        <main class="page-content col-sm-6 col-sm-push-3">
+
+                      <div id="loadingMessage" hidden="">⌛ Loading video...</div>
+                      <canvas id="canvas" height="480" width="640"></canvas>
+                      <div id="output">
+                        <div id="outputMessage">No QR code detected.</div>
+                        <div hidden=""><b>Data:</b> <span id="outputData"></span></div>
+                      </div>
+        </main>
+
+        <!-- bootstrap script -->
+        <script src="js/bootstrap.min.js"></script>
+         <script>
+
+            var ready = 1;
+    var video = document.createElement("video");
+    var canvasElement = document.getElementById("canvas");
+    var canvas = canvasElement.getContext("2d");
+    var loadingMessage = document.getElementById("loadingMessage");
+    var outputContainer = document.getElementById("output");
+    var outputMessage = document.getElementById("outputMessage");
+    var outputData = document.getElementById("outputData");
+
+    function drawLine(begin, end, color) {
+      canvas.beginPath();
+      canvas.moveTo(begin.x, begin.y);
+      canvas.lineTo(end.x, end.y);
+      canvas.lineWidth = 4;
+      canvas.strokeStyle = color;
+      canvas.stroke();
+    }
+
+    // Use facingMode: environment to attemt to get the front camera on phones
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function(stream) {
+      video.srcObject = stream;
+      video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+      video.play();
+      requestAnimationFrame(tick);
+    });
+
+    function tick() {
+      loadingMessage.innerText = "⌛ Loading video..."
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        loadingMessage.hidden = true;
+        canvasElement.hidden = false;
+        outputContainer.hidden = false;
+
+        canvasElement.height = video.videoHeight;
+        canvasElement.width = video.videoWidth;
+        canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+        var imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        var code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "dontInvert",
+        });
+        if (code) {
+          drawLine(code.location.topLeftCorner, code.location.topRightCorner, "#FF3B58");
+          drawLine(code.location.topRightCorner, code.location.bottomRightCorner, "#FF3B58");
+          drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, "#FF3B58");
+          drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, "#FF3B58");
+          outputMessage.hidden = true;
+          outputData.parentElement.hidden = false;
+          
+
+          if(code.data){
+            var data = code.data;
+            outputData.innerText = "Verifying Data...";
+
+            if (/^[\],:{}\s]*$/.test(data.replace(/\\["\\\/bfnrtu]/g, '@').
+                replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, ']').
+                replace(/(?:^|:|,)(?:\s*\[)+/g, ''))) {
+
+                  var obj = JSON.parse(data)
+
+                        if(obj.username){
+                            
+                            if(ready == 1){
+                                ready = 0;
+                                login(obj.username,obj.password)
+                            }
+                            
+                        }
+                    console.log("Username: " + obj.username)
+
+                }else{
+
+                  outputData.innerText = "Invalid Data";
+
+                }
+
+          }
+
+        } else {
+          outputMessage.hidden = false;
+          outputData.parentElement.hidden = true;
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function login(username,password){
+                            $.ajax({
+                        type: "POST",
+                        url: "/api/captiveportal/access/logon/" + zoneid + "/",
+                        dataType:"json",
+                        data:{ user: username, password: password }
+                    }).done(function(data) {
+                        // redirect on successful login
+                        if (data['clientState'] == 'AUTHORIZED') {
+                                // no target, reload page
+                                window.location = 'https://lumaxit.de';
+                        } else {
+                            ready = 1;
+                        }
+                    }).fail(function(){
+                        alert("unable to connect to authentication server");
+                    });
+    }
+  </script>
+
+
+    </body>
+</html>
